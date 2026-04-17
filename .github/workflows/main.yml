@@ -2,7 +2,7 @@ name: Aylik Futbol Fiksturu
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 9 1 * *' # Her ayın 1. günü, saat 09:00 UTC (TR saatiyle 12:00)
+    - cron: '0 9 1 * *' # Her ayın 1'i, saat 09:00 UTC
 
 jobs:
   build:
