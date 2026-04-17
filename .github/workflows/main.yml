@@ -1,29 +1,34 @@
-name: Aylik Futbol Fiksturu
+name: Aylik Fikstur Botu
+
 on:
-  workflow_dispatch:
+  workflow_dispatch: # İstediğin zaman elle çalıştırmanı sağlar
   schedule:
-    - cron: '0 9 1 * *' # Her ayın 1'i, saat 09:00 UTC
+    - cron: '0 9 1 * *' # Her ayın 1. günü Türkiye saatiyle öğlen civarı çalışır
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Depoyu Kopyala
+        uses: actions/checkout@v3
+
       - name: Python Kur
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-      - name: Paketleri Yukle
-        run: pip install requests pandas openpyxl
-      - name: Kodu Calistir
-        env:
-          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
-        run: python ana_kod.py
-      - name: Kaydet
+
+      - name: Kutuphaneleri Yukle
         run: |
-          git config --global user.name 'Sistem'
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Kodu Calistir
+        run: python ana_kod.py
+
+      - name: Excel'i Kaydet ve Yukle
+        run: |
+          git config --global user.name 'Fikstur Botu'
           git config --global user.email 'bot@github.com'
           git add maclarim.xlsx
-          git commit -m "Aylik fikstur guncellendi" || exit 0
-          git pull --rebase origin main
-          git push origin main
+          git commit -m "Yeni ayın fikstürü güncellendi" || echo "Değişiklik yok"
+          git push
