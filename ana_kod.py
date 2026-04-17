@@ -10,8 +10,8 @@ headers = {
     "X-RapidAPI-Host": "sportapi7.p.rapidapi.com"
 }
 
-# Hedef Ligler
-ligler = {
+# SADECE BU LİGLERİ KABUL ET
+hedef_ligler = {
     "Premier League": 17,
     "Serie A": 23,
     "Bundesliga": 35,
@@ -19,14 +19,14 @@ ligler = {
     "Trendyol Süper Lig": 52
 }
 
-maclar_listesi = []
+final_listesi = []
 bugun = datetime.now()
-bir_ay_sonra = bugun + timedelta(days=30)
+otuz_gun_sonra = bugun + timedelta(days=30)
 
-print(f"{bugun.strftime('%d.%m.%Y')} - {bir_ay_sonra.strftime('%d.%m.%Y')} arası taranıyor...")
+print("Ayıklama işlemi başladı...")
 
-for lig_adi, lig_id in ligler.items():
-    # Sezonun tüm maçlarını içeren endpoint
+for lig_adi, lig_id in hedef_ligler.items():
+    # Canlı maçlar yerine sezonluk fikstür endpoint'ini kullanıyoruz
     url = f"https://sportapi7.p.rapidapi.com/api/v1/tournament/{lig_id}/season/latest/matches/next/0"
     
     try:
@@ -35,30 +35,36 @@ for lig_adi, lig_id in ligler.items():
         
         if 'events' in data:
             for m in data['events']:
+                # 1. KONTROL: SADECE GELECEK MAÇLAR (Bitenleri veya canlıları alma)
+                status = m.get('status', {}).get('type', '')
+                if status != 'notstarted': 
+                    continue
+                
                 tarih_ts = m.get('startTimestamp', 0)
                 tarih_obj = datetime.fromtimestamp(tarih_ts)
                 
-                # FİLTRE: Sadece önümüzdeki 30 gün içindeki maçlar
-                if bugun <= tarih_obj <= bir_ay_sonra:
-                    maclar_listesi.append({
+                # 2. KONTROL: SADECE ÖNÜMÜZDEKİ 30 GÜN
+                if bugun <= tarih_obj <= otuz_gun_sonra:
+                    final_listesi.append({
                         "Lig": lig_adi,
                         "Maç Tarihi": tarih_obj.strftime('%d.%m.%Y %H:%M'),
                         "Ev Sahibi": m.get('homeTeam', {}).get('name', 'Bilinmiyor'),
                         "Deplasman": m.get('awayTeam', {}).get('name', 'Bilinmiyor')
                     })
     except Exception as e:
-        print(f"{lig_adi} çekilirken bir sorun oluştu: {e}")
+        print(f"{lig_adi} taranırken hata: {e}")
 
-# Veriyi İşleme ve Excel'e Yazma
-if maclar_listesi:
-    df = pd.DataFrame(maclar_listesi)
+# Veriyi İşleme
+if final_listesi:
+    df = pd.DataFrame(final_listesi)
     
-    # Tarihe göre sıralama yapalım
-    df['temp_date'] = pd.to_datetime(df['Maç Tarihi'], format='%d.%m.%Y %H:%M')
-    df = df.sort_values(by='temp_date').drop(columns=['temp_date'])
+    # Tarih sıralaması
+    df['sort_date'] = pd.to_datetime(df['Maç Tarihi'], format='%d.%m.%Y %H:%M')
+    df = df.sort_values(by='sort_date').drop(columns=['sort_date'])
     
-    # Excel'e kaydet
+    # Excel'e yaz (SADECE İSTEDİĞİN 4 SÜTUN)
+    df = df[["Lig", "Maç Tarihi", "Ev Sahibi", "Deplasman"]]
     df.to_excel("maclarim.xlsx", index=False)
-    print(f"Başarılı! {len(df)} adet maç Excel'e eklendi.")
+    print(f"Bitti! {len(df)} adet temiz fikstür verisi kaydedildi.")
 else:
-    print("Belirtilen tarih aralığında maç bulunamadı.")
+    print("Kriterlere uygun gelecek maç bulunamadı.")
