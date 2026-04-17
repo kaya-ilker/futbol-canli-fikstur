@@ -1,43 +1,61 @@
 import requests
 import pandas as pd
 import os
+from datetime import datetime
 
-# GitHub Secrets'tan anahtarı alıyoruz
 api_key = os.getenv('RAPIDAPI_KEY')
 headers = {
     "X-RapidAPI-Key": api_key,
     "X-RapidAPI-Host": "sportapi7.p.rapidapi.com"
 }
 
-# Bugünün tüm futbol etkinliklerini getiren sorgu
-url = "https://sportapi7.p.rapidapi.com/api/v1/sport/football/events/live"
+# İstediğin Liglerin ID Listesi (SportAPI standartlarına göre)
+ligler = {
+    "Premier League": 17,
+    "Serie A": 23,
+    "Bundesliga": 35,
+    "LaLiga": 8,
+    "Trendyol Süper Lig": 52,
+    "Champions League": 7,
+    "Europa League": 679,
+    "Conference League": 17012,
+    "Euro 2024/2026": 1,
+    "FIFA World Cup": 28
+}
 
-try:
-    r = requests.get(url, headers=headers)
-    data = r.json()
+maclar = []
+
+print("Fikstürler taranıyor...")
+
+for lig_adi, lig_id in ligler.items():
+    # Belirli bir lig için gelecek maçları çekiyoruz
+    url = f"https://sportapi7.p.rapidapi.com/api/v1/tournament/{lig_id}/season/latest/matches/next/0"
     
-    maclar = []
-    if 'events' in data:
-        for m in data['events']:
-            # Verileri senin istediğin başlıklarla topluyoruz
-            maclar.append({
-                "Lig": m.get('tournament', {}).get('name', 'Diğer'),
-                "Tarih": m.get('status', {}).get('description', 'Belirsiz'), # Canlıysa dakika, değilse durum yazar
-                "Ev Sahibi": m.get('homeTeam', {}).get('name', '-'),
-                "Deplasman": m.get('awayTeam', {}).get('name', '-'),
-                "Skor": f"{m.get('homeScore', {}).get('current', 0)} - {m.get('awayScore', {}).get('current', 0)}"
-            })
-    
-    if not maclar:
-        maclar = [{"Lig": "Maç Bulunamadı", "Tarih": "-", "Ev Sahibi": "Şu an aktif maç yok", "Deplasman": "-", "Skor": "-"}]
+    try:
+        r = requests.get(url, headers=headers)
+        data = r.json()
+        
+        if 'events' in data:
+            for m in data['events']:
+                # Unix zaman damgasını okunabilir tarihe çevirelim
+                dt_obj = datetime.fromtimestamp(m.get('startTimestamp', 0))
+                
+                maclar.append({
+                    "Lig": lig_adi,
+                    "Tarih": dt_obj.strftime('%d.%m.%Y'),
+                    "Saat": dt_obj.strftime('%H:%M'),
+                    "Ev Sahibi": m.get('homeTeam', {}).get('name', '-'),
+                    "Deplasman": m.get('awayTeam', {}).get('name', '-')
+                })
+    except Exception as e:
+        print(f"{lig_adi} çekilirken hata oluştu: {e}")
 
-except Exception as e:
-    maclar = [{"Lig": "Hata", "Tarih": "-", "Ev Sahibi": f"Bağlantı Sorunu: {str(e)}", "Deplasman": "-", "Skor": "-"}]
-
-# Excel dosyasını tam istediğin formatta oluşturuyoruz
-df = pd.DataFrame(maclar)
-# Sütun sırasını belirleyelim
-df = df[["Lig", "Tarih", "Ev Sahibi", "Deplasman", "Skor"]]
-
-df.to_excel("maclarim.xlsx", index=False)
-print("İstediğin formatta Excel başarıyla oluşturuldu!")
+# Excel'e aktar
+if maclar:
+    df = pd.DataFrame(maclar)
+    df = df[["Lig", "Tarih", "Saat", "Ev Sahibi", "Deplasman"]]
+    df.sort_values(by=["Tarih", "Saat"], inplace=True)
+    df.to_excel("maclarim.xlsx", index=False)
+    print("İşlem başarıyla tamamlandı.")
+else:
+    print("Hiç maç verisi bulunamadı.")
