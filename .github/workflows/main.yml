@@ -1,0 +1,23 @@
+name: Futbol Guncelleme
+on:
+  workflow_dispatch: # Sadece biz butona basınca calisacak (test icin en iyisi)
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - run: pip install requests pandas openpyxl
+      - name: Kodu Calistir
+        env:
+          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
+        run: python ana_kod.py
+      - name: Kaydet
+        run: |
+          git config --global user.name 'Sistem'
+          git config --global user.email 'bot@github.com'
+          git add .
+          git commit -m "Excel guncellendi" || exit 0
+          git push
