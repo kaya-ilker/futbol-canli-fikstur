@@ -2,39 +2,39 @@ import requests
 import pandas as pd
 import os
 
+# GitHub Secrets'tan anahtarı alıyoruz
 api_key = os.getenv('RAPIDAPI_KEY')
-headers = {"X-RapidAPI-Key": api_key, "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"}
+headers = {
+    "X-RapidAPI-Key": api_key,
+    "X-RapidAPI-Host": "sportapi7.p.rapidapi.com"
+}
 
-# Test için Türkiye Süper Ligi (203) ve 2025 sezonu
-url = "https://api-football-v1.p.rapidapi.com/v3/fixtures?league=203&season=2025"
-
-maclar = []
-hata_notu = ""
+# Bugünün futbol maçlarını getiren sorgu (Sadece Futbol için 'football')
+url = "https://sportapi7.p.rapidapi.com/api/v1/sport/football/events/live"
 
 try:
     r = requests.get(url, headers=headers)
     data = r.json()
     
-    # API'den gelen mesajı kontrol et
-    if 'errors' in data and data['errors']:
-        hata_notu = str(data['errors'])
-    elif 'response' in data and len(data['response']) > 0:
-        for m in data['response']:
+    maclar = []
+    # SportAPI verileri genellikle 'events' listesi altında sunar
+    if 'events' in data:
+        for m in data['events']:
             maclar.append({
-                "Lig": m['league']['name'],
-                "Tarih": m['fixture']['date'][:10],
-                "Ev": m['teams']['home']['name'],
-                "Dep": m['teams']['away']['name']
+                "Lig": m.get('tournament', {}).get('name', 'Bilinmiyor'),
+                "Dakika": m.get('status', {}).get('description', '-'),
+                "Ev Sahibi": m.get('homeTeam', {}).get('name', '-'),
+                "Deplasman": m.get('awayTeam', {}).get('name', '-'),
+                "Skor": f"{m.get('homeScore', {}).get('current', 0)} - {m.get('awayScore', {}).get('current', 0)}"
             })
-    else:
-        hata_notu = "API bağlandı ama bu lig/sezon için maç bulunamadı."
+    
+    if not maclar:
+        maclar = [{"Lig": "Canlı Maç Yok", "Dakika": "Şu an canlı maç bulunamadı", "Ev Sahibi": "-", "Deplasman": "-", "Skor": "-"}]
 
 except Exception as e:
-    hata_notu = f"Bağlantı hatası: {str(e)}"
+    maclar = [{"Lig": "Bağlantı Hatası", "Dakika": str(e), "Ev Sahibi": "-", "Deplasman": "-", "Skor": "-"}]
 
-# Eğer maç yoksa hatayı Excel'e yaz
-if not maclar:
-    maclar = [{"Lig": "HATA RAPORU", "Tarih": hata_notu, "Ev": "-", "Dep": "-"}]
-
+# Excel dosyasını oluştur
 df = pd.DataFrame(maclar)
 df.to_excel("maclarim.xlsx", index=False)
+print("Excel başarıyla güncellendi!")
