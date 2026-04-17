@@ -9,7 +9,7 @@ headers = {
     "X-RapidAPI-Host": "sportapi7.p.rapidapi.com"
 }
 
-# Sadece senin istediğin 5 ana lig
+# Sadece hedeflediğimiz ana ligler
 ligler = {
     "Premier League": 17,
     "Serie A": 23,
@@ -18,11 +18,14 @@ ligler = {
     "Trendyol Süper Lig": 52
 }
 
-tum_maclar = []
+tum_fikstur = []
+mevcut_ay = datetime.now().month
+mevcut_yil = datetime.now().year
+
+print(f"--- {mevcut_ay}. Ay Fikstür Taraması Başladı ---")
 
 for lig_adi, lig_id in ligler.items():
-    print(f"{lig_adi} fikstürü alınıyor...")
-    # 'next/0' yerine tüm sezon fikstürünü çekmeye çalışan endpoint'i kullanalım
+    # 'events' kapısı yerine sezonluk tüm maçları getiren kapı
     url = f"https://sportapi7.p.rapidapi.com/api/v1/tournament/{lig_id}/season/latest/matches/next/0"
     
     try:
@@ -31,30 +34,33 @@ for lig_adi, lig_id in ligler.items():
         
         if 'events' in data:
             for m in data['events']:
-                # Sadece henüz başlamamış (not_started) maçları filtreleyelim
-                status = m.get('status', {}).get('type', '')
-                if status == 'finished': continue # Biten maçları alma
+                # Unix zaman damgasını tarihe çevir
+                tarih_obj = datetime.fromtimestamp(m.get('startTimestamp', 0))
                 
-                dt_obj = datetime.fromtimestamp(m.get('startTimestamp', 0))
-                
-                tum_maclar.append({
-                    "Lig": lig_adi,
-                    "Tarih": dt_obj.strftime('%d.%m.%Y'),
-                    "Saat": dt_obj.strftime('%H:%M'),
-                    "Ev Sahibi": m.get('homeTeam', {}).get('name', 'Bilinmiyor'),
-                    "Deplasman": m.get('awayTeam', {}).get('name', 'Bilinmiyor')
-                })
+                # FİLTRE: Sadece bu ayın maçlarını veya gelecek maçları al
+                if tarih_obj.year == mevcut_yil and tarih_obj.month == mevcut_ay:
+                    tum_fikstur.append({
+                        "Lig": lig_adi,
+                        "Tarih": tarih_obj.strftime('%d.%m.%Y'),
+                        "Saat": tarih_obj.strftime('%H:%M'),
+                        "Ev Sahibi": m.get('homeTeam', {}).get('name', 'Bilinmiyor'),
+                        "Deplasman": m.get('awayTeam', {}).get('name', 'Bilinmiyor'),
+                        "Durum": "Planlandı" # Skor gelmesini engellemek için sabit yazı
+                    })
     except Exception as e:
-        print(f"{lig_adi} hatası: {e}")
+        print(f"{lig_adi} taranırken hata: {e}")
 
-# Excel Oluşturma
-if tum_maclar:
-    df = pd.DataFrame(tum_maclar)
-    # Tarih ve Saat'e göre sırala ki karmaşa olmasın
-    df['Sıralama Tarihi'] = pd.to_datetime(df['Tarih'], format='%d.%m.%Y')
-    df = df.sort_values(by=['Sıralama Tarihi', 'Saat']).drop(columns=['Sıralama Tarihi'])
+# Verileri düzenleme ve temizleme
+if tum_fikstur:
+    df = pd.DataFrame(tum_fikstur)
+    # Gereksiz tüm yan verileri (hazırlık maçı vs.) temizlemek için lig adını kontrol et
+    df = df[df['Lig'].isin(ligler.keys())] 
+    
+    # Tarihe göre kronolojik sırala
+    df['Sıralama'] = pd.to_datetime(df['Tarih'], format='%d.%m.%Y')
+    df = df.sort_values(by=['Sıralama', 'Saat']).drop(columns=['Sıralama'])
     
     df.to_excel("maclarim.xlsx", index=False)
-    print("Fikstür başarıyla hazırlandı.")
+    print(f"İşlem Tamam: {len(df)} maç listelendi.")
 else:
-    print("Veri çekilemedi, lütfen API aboneliğini ve anahtarı kontrol edin.")
+    print("Kriterlere uygun maç bulunamadı.")
