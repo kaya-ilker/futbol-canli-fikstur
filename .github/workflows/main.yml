@@ -29,6 +29,7 @@ jobs:
         run: |
           git config --global user.name 'Fikstur Botu'
           git config --global user.email 'bot@github.com'
+          git pull origin main # Önce buluttaki son hali çek
           git add maclarim.xlsx
           git commit -m "Yeni ayın fikstürü güncellendi" || echo "Değişiklik yok"
-          git push
+          git push origin main
