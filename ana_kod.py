@@ -2,62 +2,57 @@ import requests
 import pandas as pd
 from datetime import datetime, timedelta
 
-def gercek_verileri_topla():
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'
-    }
-    
-    # 5 büyük ligin SofaScore üzerindeki benzersiz ID'leri
-    lig_idleri = {
-        "Premier League": 17,
-        "LaLiga": 8,
-        "Serie A": 23,
-        "Bundesliga": 35,
-        "Trendyol Süper Lig": 52
+def nihai_veri_cekici():
+    # Bu kaynak, futbol verilerini ham metin olarak sunan ve bot engeli olmayan bir depodur.
+    # Premier League için alternatif ve çok stabil bir URL kullanıyoruz.
+    urls = {
+        "Premier League": "https://fixturedownload.com/feed/json/epl-2025",
+        "La Liga": "https://fixturedownload.com/feed/json/la-liga-2025",
+        "Serie A": "https://fixturedownload.com/feed/json/serie-a-2025",
+        "Bundesliga": "https://fixturedownload.com/feed/json/bundesliga-2025"
     }
     
     maclar = []
     bugun = datetime.now()
     otuz_gun_sonra = bugun + timedelta(days=30)
     
-    print("Gerçek takımlar çekiliyor...")
+    print("Veri kanalları taranıyor...")
 
-    for lig_adi, lig_id in lig_idleri.items():
+    for lig, url in urls.items():
         try:
-            # API'den o ligin son/gelecek maçlarını çekiyoruz
-            url = f"https://api.sofascore.com/api/v1/tournament/{lig_id}/season/latest/events/next/0"
-            r = requests.get(url, headers=headers, timeout=10)
-            data = r.json()
-            
-            if 'events' in data:
-                for event in data['events']:
-                    ts = event.get('startTimestamp')
-                    mac_zamani = datetime.fromtimestamp(ts)
+            # JSON verisini çek
+            r = requests.get(url, timeout=10)
+            if r.status_code == 200:
+                data = r.json()
+                for m in data:
+                    # Tarihi işle: "2026-04-18T15:00:00Z" formatını okur
+                    tarih_str = m['Date'].replace('Z', '')
+                    t_obj = datetime.fromisoformat(tarih_str)
                     
                     # Sadece önümüzdeki 30 günün maçları
-                    if bugun <= mac_zamani <= otuz_gun_sonra:
+                    if bugun <= t_obj <= otuz_gun_sonra:
                         maclar.append({
-                            "Lig": lig_adi,
-                            "Maç Tarihi": mac_zamani.strftime("%d.%m.%Y %H:%M"),
-                            "Ev Sahibi": event.get('homeTeam', {}).get('name', 'Bilinmiyor'),
-                            "Deplasman": event.get('awayTeam', {}).get('name', 'Bilinmiyor')
+                            "Lig": lig,
+                            "Maç Tarihi": t_obj.strftime("%d.%m.%Y %H:%M"),
+                            "Ev Sahibi": m['HomeTeam'],
+                            "Deplasman": m['AwayTeam']
                         })
+                print(f"{lig} verisi başarıyla alındı.")
         except Exception as e:
-            print(f"{lig_adi} çekilirken hata: {e}")
+            print(f"{lig} çekilirken hata: {e}")
 
     return maclar
 
-# Çalıştır ve Kaydet
-sonuc_listesi = gercek_verileri_topla()
+# Çalıştır
+liste = nihai_veri_cekici()
 
-if sonuc_listesi:
-    df = pd.DataFrame(sonuc_listesi)
-    # Tarihe göre sıralayalım
-    df['temp_date'] = pd.to_datetime(df['Maç Tarihi'], format='%d.%m.%Y %H:%M')
-    df = df.sort_values('temp_date').drop('temp_date', axis=1)
+if liste:
+    df = pd.DataFrame(liste)
+    # Tarihe göre sırala
+    df['sort'] = pd.to_datetime(df['Maç Tarihi'], format='%d.%m.%Y %H:%M')
+    df = df.sort_values('sort').drop('sort', axis=1)
     
-    # Excel'e yaz
     df.to_excel("maclarim.xlsx", index=False)
-    print(f"BAŞARILI! {len(df)} adet gerçek maç Excel'e işlendi.")
+    print(f"BİTTİ! Toplam {len(df)} gerçek maç Excel'e yazıldı.")
 else:
-    print("Maç bulunamadı, liste güncellenmedi.")
+    print("Maç bulunamadı. Statik mod için bir önceki yedek planı devreye alabilirsiniz.")
