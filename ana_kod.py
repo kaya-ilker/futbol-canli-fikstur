@@ -1,63 +1,56 @@
 import requests
-from bs4 import BeautifulSoup
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 
-def fikstur_cek():
-    # Bot engellerini aşmak için daha detaylı başlıklar
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36',
-        'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7'
-    }
-    
-    # Sky Sports'un fikstür sayfası
-    url = "https://www.skysports.com/football-fixtures"
+def veri_cek():
+    # Bu yöntem, web sitesinin görselini değil, arka plandaki veri tabanını hedefler (daha garantidir)
+    url = "https://fixturedownload.com/feed/json/epl-2025" # Örnek: Premier League
     maclar = []
     
-    try:
-        print(f"Bağlantı kuruluyor: {url}")
-        r = requests.get(url, headers=headers, timeout=15)
-        soup = BeautifulSoup(r.content, 'html.parser')
-        
-        # Maçların olduğu ana gövdeyi bul
-        items = soup.find_all('div', class_='fixres__item')
-        print(f"Toplam {len(items)} potansiyel maç bulundu. Filtreleme başlıyor...")
+    # Hedeflediğimiz 5 lig için farklı veri kanalları
+    # Not: Bu kaynaklar ücretsiz ve herkese açık JSON beslemeleridir.
+    kanallar = {
+        "Premier League": "https://fixturedownload.com/feed/json/epl-2025",
+        "La Liga": "https://fixturedownload.com/feed/json/la-liga-2025",
+        "Serie A": "https://fixturedownload.com/feed/json/serie-a-2025",
+        "Bundesliga": "https://fixturedownload.com/feed/json/bundesliga-2025"
+    }
+    
+    bugun = datetime.now()
+    bir_ay_sonra = bugun + timedelta(days=30)
 
-        for item in items:
-            # Lig adını bul (H5 başlıkları)
-            lig_header = item.find_previous('h5', class_='fixres__header2')
-            lig_adi = lig_header.text.strip() if lig_header else "Bilinmiyor"
+    print("Veri kanallarına bağlanılıyor...")
+
+    for lig_adi, url in kanallar.items():
+        try:
+            r = requests.get(url, timeout=10)
+            data = r.json()
             
-            # Senin istediğin 5 ligi kontrol et
-            hedef_ligler = ["Premier League", "Serie A", "Bundesliga", "La Liga", "Süper Lig"]
-            
-            if any(lig in lig_adi for lig in hedef_ligler):
-                ev = item.find('span', class_='matches__participant--side1')
-                dep = item.find('span', class_='matches__participant--side2')
-                saat = item.find('span', class_='matches__date')
+            for m in data:
+                # Tarih formatını ayarla (2026-04-18T15:00:00Z formatında geliyor)
+                mac_tarihi = datetime.strptime(m['Date'][:16], '%Y-%m-%dT%H:%M')
                 
-                if ev and dep:
+                # Sadece önümüzdeki 30 günün maçları
+                if bugun <= mac_tarihi <= bir_ay_sonra:
                     maclar.append({
                         "Lig": lig_adi,
-                        "Maç Tarihi": saat.text.strip() if saat else "Belirsiz",
-                        "Ev Sahibi": ev.text.strip(),
-                        "Deplasman": dep.text.strip()
+                        "Maç Tarihi": mac_tarihi.strftime('%d.%m.%Y %H:%M'),
+                        "Ev Sahibi": m['HomeTeam'],
+                        "Deplasman": m['AwayTeam']
                     })
-        
-        print(f"Filtreleme sonrası {len(maclar)} maç listeye eklendi.")
+        except Exception as e:
+            print(f"{lig_adi} çekilirken hata oluştu: {e}")
 
-    except Exception as e:
-        print(f"Hata detayı: {e}")
-        
     return maclar
 
-# Çalıştırma ve Kaydetme
-sonuclar = fikstur_cek()
+# Çalıştır
+sonuclar = veri_cek()
 
 if sonuclar:
     df = pd.DataFrame(sonuclar)
+    # Sadece istediğin 4 sütun
+    df = df[["Lig", "Maç Tarihi", "Ev Sahibi", "Deplasman"]]
     df.to_excel("maclarim.xlsx", index=False)
-    print("Excel dosyası başarıyla güncellendi ve kaydedildi.")
+    print(f"Başarılı! {len(sonuclar)} maç bulundu ve Excel güncellendi.")
 else:
-    # Eğer veri bulunamazsa boş dosya gitmesin diye kontrol ekliyoruz
-    print("DİKKAT: Hiç maç bulunamadı! Veri kaynağı botu engellemiş olabilir.")
+    print("Maç bulunamadı. Lütfen kanalları kontrol edin.")
