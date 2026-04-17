@@ -15,10 +15,11 @@ jobs:
         env:
           RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
         run: python ana_kod.py
-      - name: Kaydet
+        - name: Kaydet
         run: |
           git config --global user.name 'Sistem'
           git config --global user.email 'bot@github.com'
-          git add .
+          git pull --rebase # Sayfadaki son değişiklikleri güvenle içeri al
+          git add maclarim.xlsx
           git commit -m "Excel guncellendi" || exit 0
           git push
