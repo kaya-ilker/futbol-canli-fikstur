@@ -1,6 +1,7 @@
 name: Futbol Guncelleme
 on:
-  workflow_dispatch: # Sadece biz butona basınca calisacak (test icin en iyisi)
+  workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
