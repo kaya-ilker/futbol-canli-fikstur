@@ -1,51 +1,58 @@
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 
-def gercek_fikstur_cek():
-    # Botun gerçek bir kullanıcı gibi görünmesi için kimlik bilgisi
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124'}
+def fikstur_kaziyi_baslat():
+    # Tarayıcı gibi görünmek için başlık bilgisi
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
     
-    maclar = []
-    # Dünya genelinde güvenilir bir fikstür kaynağı (Örn: FBRef veya benzeri veri tabanları)
-    # Burada 5 büyük ligin toplu fikstürünü sunan bir yapı kullanıyoruz.
+    # Sky Sports'un genel fikstür sayfası
     url = "https://www.skysports.com/football-fixtures"
     
+    maclar = []
+    
     try:
-        response = requests.get(url, headers=headers)
-        soup = BeautifulSoup(response.content, 'html.parser')
+        r = requests.get(url, headers=headers)
+        soup = BeautifulSoup(r.content, 'html.parser')
         
-        # Sayfadaki her bir maç bloğunu buluyoruz
-        for block in soup.find_all('div', class_='fixres__item'):
-            lig_ham = block.find_previous('h5', class_='fixres__header2')
-            lig_adi = lig_ham.text.strip() if lig_ham else "Diğer"
+        # Sayfadaki tüm maç bloklarını buluyoruz
+        for lig_blogu in soup.find_all('div', class_='fixres__item'):
+            # Lig ismini bulmak için bir üstteki başlığa bakıyoruz
+            lig_basligi = lig_blogu.find_previous('h5', class_='fixres__header2')
+            lig_adi = lig_basligi.text.strip() if lig_basligi else "Bilinmiyor"
             
-            # Sadece senin istediğin 5 ligi filtrele
+            # Sadece senin istediğin 5 ligi içerenleri alalım
             if any(l in lig_adi for l in ["Premier League", "Serie A", "Bundesliga", "La Liga", "Süper Lig"]):
-                ev_sahibi = block.find('span', class_='matches__participant--side1').text.strip()
-                deplasman = block.find('span', class_='matches__participant--side2').text.strip()
-                saat = block.find('span', class_='matches__date').text.strip()
                 
-                # Tarihi o günün tarihi olarak alıyoruz (SkySports günlük liste sunar)
-                tarih = datetime.now().strftime("%d.%m.%Y")
+                ev_sahibi = lig_blogu.find('span', class_='matches__participant--side1').text.strip()
+                deplasman = lig_blogu.find('span', class_='matches__participant--side2').text.strip()
+                saat = lig_blogu.find('span', class_='matches__date').text.strip()
+                
+                # Tarih bilgisi Sky Sports'ta genellikle üst başlıkta yer alır
+                tarih_blogu = lig_blogu.find_previous('h4', class_='fixres__header1')
+                tarih_metni = tarih_blogu.text.strip() if tarih_blogu else datetime.now().strftime("%d.%m.%Y")
                 
                 maclar.append({
                     "Lig": lig_adi,
-                    "Maç Tarihi": f"{tarih} {saat}",
+                    "Maç Tarihi": f"{tarih_metni} {saat}",
                     "Ev Sahibi": ev_sahibi,
                     "Deplasman": deplasman
                 })
     except Exception as e:
-        print(f"Hata oluştu: {e}")
-    
+        print(f"Hata: {e}")
+        
     return maclar
 
-# Verileri çek ve Excel'e yaz
-veriler = gercek_fikstur_cek()
-if veriler:
-    df = pd.DataFrame(veriler)
+# Veriyi çek ve Excel'e dök
+liste = fikstur_kaziyi_baslat()
+if liste:
+    df = pd.DataFrame(liste)
+    # Sütunları düzenle
+    df = df[["Lig", "Maç Tarihi", "Ev Sahibi", "Deplasman"]]
     df.to_excel("maclarim.xlsx", index=False)
-    print("Gerçek verilerle Excel güncellendi!")
+    print("Gerçek fikstür verileri Excel'e başarıyla yazıldı!")
 else:
-    print("Maç bulunamadı, liste boş.")
+    print("Eşleşen maç bulunamadı.")
