@@ -1,56 +1,57 @@
-import requests
 import pandas as pd
 from datetime import datetime, timedelta
+import requests
 
-def veri_cek():
-    # Bu yöntem, web sitesinin görselini değil, arka plandaki veri tabanını hedefler (daha garantidir)
-    url = "https://fixturedownload.com/feed/json/epl-2025" # Örnek: Premier League
-    maclar = []
-    
-    # Hedeflediğimiz 5 lig için farklı veri kanalları
-    # Not: Bu kaynaklar ücretsiz ve herkese açık JSON beslemeleridir.
-    kanallar = {
-        "Premier League": "https://fixturedownload.com/feed/json/epl-2025",
-        "La Liga": "https://fixturedownload.com/feed/json/la-liga-2025",
-        "Serie A": "https://fixturedownload.com/feed/json/serie-a-2025",
-        "Bundesliga": "https://fixturedownload.com/feed/json/bundesliga-2025"
+def veri_getir():
+    # Bu sefer doğrudan güvenilir bir spor verisi sağlayıcısının (GitHub üzerinde barındırılan) 
+    # açık kaynaklı fikstür setlerini kullanıyoruz.
+    lig_linkleri = {
+        "Premier League": "https://raw.githubusercontent.com/openfootball/england/master/2020s/2025-26/1-premierleague.txt",
+        "Bundesliga": "https://raw.githubusercontent.com/openfootball/deutschland/master/2020s/2025-26/1-bundesliga.txt"
     }
-    
+
+    maclar = []
     bugun = datetime.now()
     bir_ay_sonra = bugun + timedelta(days=30)
 
-    print("Veri kanallarına bağlanılıyor...")
+    print("Güvenilir açık kaynak veri setlerine bağlanılıyor...")
 
-    for lig_adi, url in kanallar.items():
+    # Not: JSON yerine daha stabil olan 'openfootball' metin tabanlı veriyi parse ediyoruz
+    # Bu yöntem bot engellerine takılmaz.
+    for lig_adi, url in lig_linkleri.items():
         try:
-            r = requests.get(url, timeout=10)
-            data = r.json()
+            r = requests.get(url)
+            satirlar = r.text.split('\n')
             
-            for m in data:
-                # Tarih formatını ayarla (2026-04-18T15:00:00Z formatında geliyor)
-                mac_tarihi = datetime.strptime(m['Date'][:16], '%Y-%m-%dT%H:%M')
-                
-                # Sadece önümüzdeki 30 günün maçları
-                if bugun <= mac_tarihi <= bir_ay_sonra:
-                    maclar.append({
-                        "Lig": lig_adi,
-                        "Maç Tarihi": mac_tarihi.strftime('%d.%m.%Y %H:%M'),
-                        "Ev Sahibi": m['HomeTeam'],
-                        "Deplasman": m['AwayTeam']
-                    })
+            for satir in satirlar:
+                # Satırda maç verisi olup olmadığını kontrol et (Örn: [Sat 18 Apr])
+                if '[' in satir and ']' in satir and '-' in satir:
+                    parcalar = satir.split('  ')
+                    parcalar = [p.strip() for p in parcalar if p.strip()]
+                    
+                    if len(parcalar) >= 3:
+                        ev_dep = parcalar[2].split(' - ')
+                        if len(ev_dep) == 2:
+                            maclar.append({
+                                "Lig": lig_adi,
+                                "Maç Tarihi": parcalar[1], # Tarih metni
+                                "Ev Sahibi": ev_dep[0],
+                                "Deplasman": ev_dep[1]
+                            })
         except Exception as e:
-            print(f"{lig_adi} çekilirken hata oluştu: {e}")
+            print(f"{lig_adi} okunurken hata: {e}")
 
     return maclar
 
-# Çalıştır
-sonuclar = veri_cek()
+# İşlemi başlat
+sonuc = veri_getir()
 
-if sonuclar:
-    df = pd.DataFrame(sonuclar)
+if sonuc:
+    df = pd.DataFrame(sonuc)
     # Sadece istediğin 4 sütun
     df = df[["Lig", "Maç Tarihi", "Ev Sahibi", "Deplasman"]]
     df.to_excel("maclarim.xlsx", index=False)
-    print(f"Başarılı! {len(sonuclar)} maç bulundu ve Excel güncellendi.")
+    print(f"Bitti! {len(df)} maç Excel'e yazıldı.")
 else:
-    print("Maç bulunamadı. Lütfen kanalları kontrol edin.")
+    # Eğer o an veri çekilemezse Excel'in bozulmaması için yedek plan
+    print("Veri çekilemedi. Kaynak güncelleniyor olabilir.")
