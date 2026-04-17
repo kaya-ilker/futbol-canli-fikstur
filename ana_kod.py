@@ -16,11 +16,6 @@ ligler = {
     "Bundesliga": 35,
     "LaLiga": 8,
     "Trendyol Süper Lig": 52,
-    "Champions League": 7,
-    "Europa League": 679,
-    "Conference League": 17012,
-    "Euro 2024/2026": 1,
-    "FIFA World Cup": 28
 }
 
 maclar = []
