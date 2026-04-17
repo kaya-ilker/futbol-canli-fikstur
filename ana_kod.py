@@ -2,8 +2,7 @@ import requests
 import pandas as pd
 from datetime import datetime, timedelta
 
-def esnek_veri_cek():
-    # En stabil 4 lig kaynağı (JSON)
+def nihai_esnek_cekici():
     kanallar = {
         "Premier League": "https://fixturedownload.com/feed/json/epl-2025",
         "La Liga": "https://fixturedownload.com/feed/json/la-liga-2025",
@@ -12,54 +11,57 @@ def esnek_veri_cek():
     }
     
     maclar = []
-    bugun = datetime.now()
-    otuz_gun_sonra = bugun + timedelta(days=30)
+    # Zaman filtresini genişletiyoruz: Dünden başla, 45 gün sonrasına git
+    # Böylece saat farkı nedeniyle maç kaçırmayız.
+    baslangic = datetime.now() - timedelta(days=1)
+    bitis = datetime.now() + timedelta(days=45)
     
-    print("Veri kanalları esnek modda taranıyor...")
+    print(f"Tarama aralığı: {baslangic.strftime('%d.%m')} - {bitis.strftime('%d.%m')}")
 
     for lig_adi, url in kanallar.items():
         try:
             r = requests.get(url, timeout=10)
             if r.status_code == 200:
                 data = r.json()
+                lig_mac_sayisi = 0
                 for m in data:
-                    # ANAHTAR KONTROLÜ: 'Date' veya 'date' hangisi varsa onu al
                     ham_tarih = m.get('Date') or m.get('date')
-                    ev_sahibi = m.get('HomeTeam') or m.get('homeTeam')
-                    deplasman = m.get('AwayTeam') or m.get('awayTeam')
+                    ev = m.get('HomeTeam') or m.get('homeTeam')
+                    dep = m.get('AwayTeam') or m.get('awayTeam')
                     
-                    if ham_tarih and ev_sahibi:
-                        # Tarih formatını temizle (Z harfini ve milisaniyeleri at)
-                        tarih_temiz = ham_tarih.replace('Z', '').split('.')[0]
+                    if ham_tarih and ev:
+                        # Tarih formatını temizleme
+                        t_temiz = ham_tarih.replace('Z', '').split('.')[0]
                         try:
-                            t_obj = datetime.fromisoformat(tarih_temiz)
+                            t_obj = datetime.fromisoformat(t_temiz)
                             
-                            # Sadece önümüzdeki 30 gün
-                            if bugun <= t_obj <= otuz_gun_sonra:
+                            # Filtre: Sadece belirlediğimiz aralıktaki maçlar
+                            if baslangic <= t_obj <= bitis:
                                 maclar.append({
                                     "Lig": lig_adi,
                                     "Maç Tarihi": t_obj.strftime("%d.%m.%Y %H:%M"),
-                                    "Ev Sahibi": ev_sahibi,
-                                    "Deplasman": deplasman
+                                    "Ev Sahibi": ev,
+                                    "Deplasman": dep
                                 })
-                        except:
-                            continue # Tarih formatı uymazsa pas geç
-                print(f"{lig_adi} başarıyla tarandı.")
+                                lig_mac_sayisi += 1
+                        except: continue
+                print(f"{lig_adi}: {lig_mac_sayisi} maç bulundu.")
         except Exception as e:
-            print(f"{lig_adi} kanalında sorun: {e}")
+            print(f"{lig_adi} hatası: {e}")
 
     return maclar
 
 # Çalıştır
-liste = esnek_veri_cek()
+veriler = nihai_esnek_cekici()
 
-if liste:
-    df = pd.DataFrame(liste)
-    # Tarihe göre sırala
+if veriler:
+    df = pd.DataFrame(veriler)
+    # Tarih sıralaması
     df['sort'] = pd.to_datetime(df['Maç Tarihi'], format='%d.%m.%Y %H:%M')
     df = df.sort_values('sort').drop('sort', axis=1)
     
+    # Excel'e yaz
     df.to_excel("maclarim.xlsx", index=False)
-    print(f"TEBRİKLER! {len(df)} maç bulundu ve Excel güncellendi.")
+    print(f"İŞLEM TAMAM! {len(df)} maç Excel'e kaydedildi.")
 else:
-    print("DİKKAT: Hiç maç bulunamadı. Kaynaklar geçici olarak kapalı olabilir.")
+    print("Hala maç bulunamadı. Lütfen sistem tarihini kontrol edin.")
