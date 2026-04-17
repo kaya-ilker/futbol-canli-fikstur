@@ -1,0 +1,29 @@
+import requests
+import pandas as pd
+import os
+
+api_key = os.getenv('RAPIDAPI_KEY')
+headers = {"X-RapidAPI-Key": api_key, "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"}
+
+# Sadece test icin Premier League (ID: 39)
+url = "https://api-football-v1.p.rapidapi.com/v3/fixtures?league=39&season=2025"
+
+r = requests.get(url, headers=headers)
+data = r.json()
+
+maclar = []
+if 'response' in data and len(data['response']) > 0:
+    for m in data['response']:
+        maclar.append({
+            "Lig": m['league']['name'],
+            "Tarih": m['fixture']['date'][:10],
+            "Ev": m['teams']['home']['name'],
+            "Dep": m['teams']['away']['name']
+        })
+
+# Eger veri yoksa hata verme, sadece bildir
+if not maclar:
+    maclar = [{"Lig": "Veri Cekilemedi", "Tarih": "-", "Ev": "-", "Dep": "-"}]
+
+pd.DataFrame(maclar).to_excel("maclarim.xlsx", index=False)
+print("Islem Basarili!")
