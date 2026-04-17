@@ -25,7 +25,7 @@ jobs:
         run: |
           git config --global user.name 'Sistem'
           git config --global user.email 'bot@github.com'
-          git pull --rebase
           git add maclarim.xlsx
           git commit -m "Excel guncellendi" || exit 0
-          git push
+          git pull --rebase origin main
+          git push origin main
