@@ -1,31 +1,29 @@
-name: Futbol Guncelleme
+name: Aylik Futbol Fiksturu
 on:
-  workflow_dispatch:
+  workflow_dispatch: # İstediğinde elle çalıştırmak için
+  schedule:
+    - cron: '0 9 1 * *' # Her ayın 1. günü saat 09:00 (UTC)
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
       - name: Python Kur
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-
       - name: Paketleri Yukle
         run: pip install requests pandas openpyxl
-
       - name: Kodu Calistir
         env:
           RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
         run: python ana_kod.py
-
       - name: Kaydet
         run: |
           git config --global user.name 'Sistem'
           git config --global user.email 'bot@github.com'
           git add maclarim.xlsx
-          git commit -m "Excel guncellendi" || exit 0
+          git commit -m "Aylik fikstur guncellendi" || exit 0
           git pull --rebase origin main
           git push origin main
